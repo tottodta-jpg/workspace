@@ -171,12 +171,27 @@ export default function App() {
     setLoading(false);
   };
 
+  // --- LÓGICA INTELIGENTE PARA DECIDIR QUÉ CORREO MOSTRAR ---
+  const getDisplayEmail = (item) => {
+    const sender = (item.email || '').toLowerCase();
+    
+    // Si es el bot de Microsoft o viene directamente del bot oficial de Disney+
+    const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
+    
+    if (item.service === 'Hotmail' || isDisneyBot) {
+      return item.destinatario || item.email || '';
+    }
+    
+    // Para los demás (ej. clientes de Netflix reenviando correos), mostramos el remitente
+    return item.email || '';
+  };
+
   // --- Extracción inteligente de dominios ---
   const availableDomains = useMemo(() => {
     const domains = new Set();
     codes.forEach(c => {
-      // CONDICIÓN: Si es Hotmail usamos el destinatario, para los demás usamos el remitente original (email)
-      const targetEmail = c.service === 'Hotmail' ? (c.destinatario || c.email || '') : (c.email || '');
+      // Usamos la función inteligente
+      const targetEmail = getDisplayEmail(c);
       if(targetEmail.includes('@')) {
         domains.add(targetEmail.split('@')[1].toLowerCase());
       }
@@ -185,8 +200,8 @@ export default function App() {
   }, [codes]);
 
   const filteredCodes = codes.filter(item => {
-    // CONDICIÓN: Búsqueda y filtrado respetando la regla anterior
-    const targetEmail = item.service === 'Hotmail' ? (item.destinatario || item.email || '') : (item.email || '');
+    // CONDICIÓN: Búsqueda y filtrado usando la función inteligente
+    const targetEmail = getDisplayEmail(item);
     
     const matchesSearch = targetEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesService = filterService === 'All' || item.service === filterService;
@@ -449,8 +464,8 @@ export default function App() {
                   {paginatedCodes.map((item) => {
                     const cleanCode = item.code ? item.code.replace(/\s+/g, '') : null;
                     
-                    // CONDICIÓN VISUAL: Si es Hotmail mostramos el destinatario, si es Netflix/Disney mostramos el remitente (email)
-                    const displayEmail = item.service === 'Hotmail' ? (item.destinatario || item.email || '') : (item.email || '');
+                    // CONDICIÓN VISUAL: Determinar qué correo mostrar usando la función central
+                    const displayEmail = getDisplayEmail(item);
 
                     return (
                     <div key={item.id} className={`p-4 sm:p-6 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${item.status === 'new' ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-slate-800/80'}`}>
