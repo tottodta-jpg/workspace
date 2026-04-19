@@ -89,13 +89,17 @@ export default function App() {
           }
         }
 
-        // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR HOTMAIL
+        // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR SERVICIOS
         let finalService = data.service;
-        const senderEmail = (data.email || '').toLowerCase(); // Remitente (usado para detectar Microsoft)
+        const senderEmail = (data.email || '').toLowerCase(); 
         
-        // Si el REMITENTE es el robot de Microsoft, lo clasificamos como Hotmail automáticamente
+        // Si el REMITENTE es el robot de Microsoft
         if (senderEmail.includes('accountprotection.microsoft.com') || senderEmail.includes('account-security-noreply')) {
           finalService = 'Hotmail';
+        }
+        // Si el REMITENTE es el proveedor GOPLAY (los asignamos directamente a Disney+)
+        else if (senderEmail.includes('goplay')) {
+          finalService = 'Disney+';
         }
 
         return { id: docSnapshot.id, ...data, service: finalService, time: timeString, _sortTime: timeValue };
@@ -175,14 +179,15 @@ export default function App() {
   const getDisplayEmail = (item) => {
     const sender = (item.email || '').toLowerCase();
     
-    // Si es el bot de Microsoft o viene directamente del bot oficial de Disney+
+    // Identificamos los bots que necesitan que mostremos el DESTINATARIO
     const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
+    const isGoPlay = sender.includes('goplay'); // <-- NUEVA REGLA PARA GOPLAY
     
-    if (item.service === 'Hotmail' || isDisneyBot) {
+    if (item.service === 'Hotmail' || isDisneyBot || isGoPlay) {
       return item.destinatario || item.email || '';
     }
     
-    // Para los demás (ej. clientes de Netflix reenviando correos), mostramos el remitente
+    // Para los demás, mostramos el remitente
     return item.email || '';
   };
 
