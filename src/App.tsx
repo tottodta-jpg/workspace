@@ -175,8 +175,8 @@ export default function App() {
   const availableDomains = useMemo(() => {
     const domains = new Set();
     codes.forEach(c => {
-      // Usamos el destinatario para agrupar dominios si existe
-      const targetEmail = c.destinatario || c.email || '';
+      // CONDICIÓN: Si es Hotmail usamos el destinatario, para los demás usamos el remitente original (email)
+      const targetEmail = c.service === 'Hotmail' ? (c.destinatario || c.email || '') : (c.email || '');
       if(targetEmail.includes('@')) {
         domains.add(targetEmail.split('@')[1].toLowerCase());
       }
@@ -185,7 +185,8 @@ export default function App() {
   }, [codes]);
 
   const filteredCodes = codes.filter(item => {
-    const targetEmail = item.destinatario || item.email || '';
+    // CONDICIÓN: Búsqueda y filtrado respetando la regla anterior
+    const targetEmail = item.service === 'Hotmail' ? (item.destinatario || item.email || '') : (item.email || '');
     
     const matchesSearch = targetEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesService = filterService === 'All' || item.service === filterService;
@@ -448,8 +449,8 @@ export default function App() {
                   {paginatedCodes.map((item) => {
                     const cleanCode = item.code ? item.code.replace(/\s+/g, '') : null;
                     
-                    // Identificador del correo final a mostrar (Prioriza destinatario)
-                    const displayEmail = item.destinatario || item.email || '';
+                    // CONDICIÓN VISUAL: Si es Hotmail mostramos el destinatario, si es Netflix/Disney mostramos el remitente (email)
+                    const displayEmail = item.service === 'Hotmail' ? (item.destinatario || item.email || '') : (item.email || '');
 
                     return (
                     <div key={item.id} className={`p-4 sm:p-6 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${item.status === 'new' ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-slate-800/80'}`}>
