@@ -92,7 +92,10 @@ export default function App() {
         // CORRECCIÓN AUTOMÁTICA DE SERVICIO PARA HOTMAIL/MICROSOFT
         let finalService = data.service;
         const targetEmail = (data.destinatario || data.email || '').toLowerCase();
-        if (targetEmail.includes('microsoft') || targetEmail.includes('hotmail') || targetEmail.includes('outlook')) {
+        
+        // CORRECCIÓN: Solo cambiar a Hotmail si el correo es el remitente oficial del bot de Microsoft
+        // Esto evita cambiar los Netflix de clientes que tienen correo @hotmail.com o @outlook.com
+        if (targetEmail.includes('accountprotection.microsoft.com') || targetEmail.includes('account-security-noreply')) {
           finalService = 'Hotmail';
         }
 
