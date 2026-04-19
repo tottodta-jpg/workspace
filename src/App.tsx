@@ -58,7 +58,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterService, setFilterService] = useState('All');
-  const [filterDomain, setFilterDomain] = useState('All'); // Nuevo estado para Dominios
+  const [filterDomain, setFilterDomain] = useState('All');
   const [notification, setNotification] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -89,7 +89,14 @@ export default function App() {
           }
         }
 
-        return { id: docSnapshot.id, ...data, time: timeString, _sortTime: timeValue };
+        // CORRECCIÓN AUTOMÁTICA DE SERVICIO PARA HOTMAIL/MICROSOFT
+        let finalService = data.service;
+        const targetEmail = (data.destinatario || data.email || '').toLowerCase();
+        if (targetEmail.includes('microsoft') || targetEmail.includes('hotmail') || targetEmail.includes('outlook')) {
+          finalService = 'Hotmail';
+        }
+
+        return { id: docSnapshot.id, ...data, service: finalService, time: timeString, _sortTime: timeValue };
       });
       
       fetchedCodes.sort((a, b) => b._sortTime - a._sortTime);
@@ -162,23 +169,26 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- NUEVO: Extracción inteligente de dominios disponibles ---
+  // --- Extracción inteligente de dominios mejorada ---
   const availableDomains = useMemo(() => {
     const domains = new Set();
     codes.forEach(c => {
-      if(c.email && c.email.includes('@')) {
-        domains.add(c.email.split('@')[1].toLowerCase());
+      // Usamos 'destinatario' si existe (nueva mejora), de lo contrario 'email'
+      const targetEmail = c.destinatario || c.email || '';
+      if(targetEmail.includes('@')) {
+        domains.add(targetEmail.split('@')[1].toLowerCase());
       }
     });
     return ['All', ...Array.from(domains)];
   }, [codes]);
 
   const filteredCodes = codes.filter(item => {
-    const matchesSearch = item.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const targetEmail = item.destinatario || item.email || '';
+    
+    const matchesSearch = targetEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesService = filterService === 'All' || item.service === filterService;
     
-    // Verificación del dominio
-    const itemDomain = item.email && item.email.includes('@') ? item.email.split('@')[1].toLowerCase() : '';
+    const itemDomain = targetEmail.includes('@') ? targetEmail.split('@')[1].toLowerCase() : '';
     const matchesDomain = filterDomain === 'All' || itemDomain === filterDomain;
 
     return matchesSearch && matchesService && matchesDomain;
@@ -195,6 +205,7 @@ export default function App() {
       case 'Netflix': return <Tv className="w-5 h-5 text-red-600 dark:text-red-500" />;
       case 'Disney+': return <Film className="w-5 h-5 text-blue-600 dark:text-blue-500" />;
       case 'HBO': return <Video className="w-5 h-5 text-purple-600 dark:text-purple-500" />;
+      case 'Hotmail': return <Mail className="w-5 h-5 text-cyan-600 dark:text-cyan-500" />;
       default: return <ShieldAlert className="w-5 h-5 text-gray-600 dark:text-gray-400" />;
     }
   };
@@ -339,7 +350,7 @@ export default function App() {
               />
             </div>
 
-            {/* NUEVO: Selector de Dominios */}
+            {/* Selector de Dominios */}
             <div className="relative min-w-[180px]">
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <Filter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -361,7 +372,7 @@ export default function App() {
 
             {/* Selector de Plataforma */}
             <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
-              {['All', 'Netflix', 'Disney+', 'HBO'].map(service => (
+              {['All', 'Netflix', 'Disney+', 'HBO', 'Hotmail'].map(service => (
                 <button
                   key={service}
                   onClick={() => setFilterService(service)}
@@ -434,6 +445,10 @@ export default function App() {
                 <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
                   {paginatedCodes.map((item) => {
                     const cleanCode = item.code ? item.code.replace(/\s+/g, '') : null;
+                    
+                    // Identificador del correo final a mostrar
+                    const targetEmail = item.destinatario || item.email || '';
+                    const isGenericSender = targetEmail.toLowerCase().includes('noreply') || targetEmail.toLowerCase().includes('accountprotection');
 
                     return (
                     <div key={item.id} className={`p-4 sm:p-6 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${item.status === 'new' ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-slate-800/80'}`}>
@@ -441,7 +456,8 @@ export default function App() {
                       <div className={`p-3 rounded-xl ${
                         item.service === 'Netflix' ? 'bg-red-50 dark:bg-red-500/10' : 
                         item.service === 'Disney+' ? 'bg-blue-50 dark:bg-blue-500/10' : 
-                        item.service === 'HBO' ? 'bg-purple-50 dark:bg-purple-500/10' : 'bg-gray-100 dark:bg-slate-700'
+                        item.service === 'HBO' ? 'bg-purple-50 dark:bg-purple-500/10' : 
+                        item.service === 'Hotmail' ? 'bg-cyan-50 dark:bg-cyan-500/10' : 'bg-gray-100 dark:bg-slate-700'
                       }`}>
                         {getServiceIcon(item.service)}
                       </div>
@@ -452,7 +468,17 @@ export default function App() {
                             <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Nuevo</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{item.email}</p>
+                        
+                        {/* LÓGICA VISUAL DEL CORREO */}
+                        {isGenericSender ? (
+                           <div className="flex items-center gap-1.5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded-md mt-1 w-fit border border-orange-200 dark:border-orange-800/30 cursor-help" title="Make.com está enviando el Remitente. Debes configurar Make para que envíe el Destinatario (To) o extraerlo del texto.">
+                             <AlertCircle className="w-3.5 h-3.5" />
+                             <span className="text-[11px] font-bold">{targetEmail} (Remitente Microsoft)</span>
+                           </div>
+                        ) : (
+                           <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{targetEmail}</p>
+                        )}
+
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <p className="text-xs text-gray-400 dark:text-gray-500">{item.time}</p>
                           {item.type === 'link' && (
