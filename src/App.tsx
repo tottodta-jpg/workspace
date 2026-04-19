@@ -177,6 +177,11 @@ export default function App() {
 
   // --- LÓGICA INTELIGENTE PARA DECIDIR QUÉ CORREO MOSTRAR ---
   const getDisplayEmail = (item) => {
+    // 🌟 NUEVA REGLA: Si Make envía el correo extraído en la variable 'correo_real', úsalo prioritariamente.
+    if (item.correo_real) {
+      return item.correo_real;
+    }
+
     const sender = (item.email || '').toLowerCase();
     
     // Identificamos los bots que necesitan que mostremos el DESTINATARIO
