@@ -89,13 +89,12 @@ export default function App() {
           }
         }
 
-        // CORRECCIÓN AUTOMÁTICA DE SERVICIO PARA HOTMAIL/MICROSOFT
+        // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR HOTMAIL
         let finalService = data.service;
-        const targetEmail = (data.destinatario || data.email || '').toLowerCase();
+        const senderEmail = (data.email || '').toLowerCase(); // Remitente (usado para detectar Microsoft)
         
-        // CORRECCIÓN: Solo cambiar a Hotmail si el correo es el remitente oficial del bot de Microsoft
-        // Esto evita cambiar los Netflix de clientes que tienen correo @hotmail.com o @outlook.com
-        if (targetEmail.includes('accountprotection.microsoft.com') || targetEmail.includes('account-security-noreply')) {
+        // Si el REMITENTE es el robot de Microsoft, lo clasificamos como Hotmail automáticamente
+        if (senderEmail.includes('accountprotection.microsoft.com') || senderEmail.includes('account-security-noreply')) {
           finalService = 'Hotmail';
         }
 
@@ -172,11 +171,11 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- Extracción inteligente de dominios mejorada ---
+  // --- Extracción inteligente de dominios ---
   const availableDomains = useMemo(() => {
     const domains = new Set();
     codes.forEach(c => {
-      // Usamos 'destinatario' si existe (nueva mejora), de lo contrario 'email'
+      // Usamos el destinatario para agrupar dominios si existe
       const targetEmail = c.destinatario || c.email || '';
       if(targetEmail.includes('@')) {
         domains.add(targetEmail.split('@')[1].toLowerCase());
@@ -449,9 +448,8 @@ export default function App() {
                   {paginatedCodes.map((item) => {
                     const cleanCode = item.code ? item.code.replace(/\s+/g, '') : null;
                     
-                    // Identificador del correo final a mostrar
-                    const targetEmail = item.destinatario || item.email || '';
-                    const isGenericSender = targetEmail.toLowerCase().includes('noreply') || targetEmail.toLowerCase().includes('accountprotection');
+                    // Identificador del correo final a mostrar (Prioriza destinatario)
+                    const displayEmail = item.destinatario || item.email || '';
 
                     return (
                     <div key={item.id} className={`p-4 sm:p-6 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${item.status === 'new' ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-slate-800/80'}`}>
@@ -472,15 +470,7 @@ export default function App() {
                           )}
                         </div>
                         
-                        {/* LÓGICA VISUAL DEL CORREO */}
-                        {isGenericSender ? (
-                           <div className="flex items-center gap-1.5 text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded-md mt-1 w-fit border border-orange-200 dark:border-orange-800/30 cursor-help" title="Make.com está enviando el Remitente. Debes configurar Make para que envíe el Destinatario (To) o extraerlo del texto.">
-                             <AlertCircle className="w-3.5 h-3.5" />
-                             <span className="text-[11px] font-bold">{targetEmail} (Remitente Microsoft)</span>
-                           </div>
-                        ) : (
-                           <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{targetEmail}</p>
-                        )}
+                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{displayEmail}</p>
 
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <p className="text-xs text-gray-400 dark:text-gray-500">{item.time}</p>
