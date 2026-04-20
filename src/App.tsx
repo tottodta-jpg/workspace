@@ -175,14 +175,15 @@ export default function App() {
   const getDisplayEmail = (item) => {
     const sender = (item.email || '').toLowerCase();
     
-    // Si es el bot de Microsoft o viene directamente del bot oficial de Disney+
+    // Identificamos los bots oficiales de las plataformas
     const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
+    const isNetflixBot = sender.includes('netflix.com'); // <-- NUEVA REGLA PARA NETFLIX
     
-    if (item.service === 'Hotmail' || isDisneyBot) {
+    if (item.service === 'Hotmail' || isDisneyBot || isNetflixBot) {
       return item.destinatario || item.email || '';
     }
     
-    // Para los demás (ej. clientes de Netflix reenviando correos), mostramos el remitente
+    // Para los demás (ej. clientes de Netflix reenviando correos desde sus cuentas), mostramos el remitente
     return item.email || '';
   };
 
