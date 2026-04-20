@@ -62,7 +62,6 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [dbError, setDbError] = useState(null); // <-- NUEVO: Detector de errores de BD
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -75,7 +74,6 @@ export default function App() {
     const q = query(collection(db, 'received_codes'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setDbError(null); // Si conecta bien, borramos cualquier error previo
       let fetchedCodes = snapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         let timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -91,17 +89,13 @@ export default function App() {
           }
         }
 
-        // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR SERVICIOS
+        // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR HOTMAIL
         let finalService = data.service;
-        const senderEmail = (data.email || '').toLowerCase(); 
+        const senderEmail = (data.email || '').toLowerCase(); // Remitente (usado para detectar Microsoft)
         
-        // Si el REMITENTE es el robot de Microsoft
+        // Si el REMITENTE es el robot de Microsoft, lo clasificamos como Hotmail automáticamente
         if (senderEmail.includes('accountprotection.microsoft.com') || senderEmail.includes('account-security-noreply')) {
           finalService = 'Hotmail';
-        }
-        // Si el REMITENTE es el proveedor GOPLAY (los asignamos directamente a Disney+)
-        else if (senderEmail.includes('goplay')) {
-          finalService = 'Disney+';
         }
 
         return { id: docSnapshot.id, ...data, service: finalService, time: timeString, _sortTime: timeValue };
@@ -112,7 +106,6 @@ export default function App() {
       setLoading(false);
     }, (error) => {
       console.error("Error conectando a Firebase:", error);
-      setDbError(error.message); // <-- NUEVO: Captura el error y lo envía a la pantalla
       setLoading(false);
     });
 
@@ -180,22 +173,16 @@ export default function App() {
 
   // --- LÓGICA INTELIGENTE PARA DECIDIR QUÉ CORREO MOSTRAR ---
   const getDisplayEmail = (item) => {
-    // 🌟 NUEVA REGLA: Si Make envía el correo extraído en la variable 'correo_real', úsalo prioritariamente.
-    if (item.correo_real) {
-      return item.correo_real;
-    }
-
     const sender = (item.email || '').toLowerCase();
     
-    // Identificamos los bots que necesitan que mostremos el DESTINATARIO
+    // Si es el bot de Microsoft o viene directamente del bot oficial de Disney+
     const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
-    const isGoPlay = sender.includes('goplay'); // <-- NUEVA REGLA PARA GOPLAY
     
-    if (item.service === 'Hotmail' || isDisneyBot || isGoPlay) {
+    if (item.service === 'Hotmail' || isDisneyBot) {
       return item.destinatario || item.email || '';
     }
     
-    // Para los demás, mostramos el remitente
+    // Para los demás (ej. clientes de Netflix reenviando correos), mostramos el remitente
     return item.email || '';
   };
 
@@ -324,9 +311,9 @@ export default function App() {
                 Receptor Maestro de Códigos
               </h1>
               <div className="flex items-center gap-3 mt-1">
-                <span className={`flex items-center gap-1 text-sm font-medium ${dbError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                  <span className={`w-2 h-2 rounded-full ${dbError ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`}></span>
-                  {dbError ? 'Error de conexión' : 'Conectado a Firebase en vivo'}
+                <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  Conectado a Firebase en vivo
                 </span>
               </div>
             </div>
@@ -367,28 +354,6 @@ export default function App() {
               </div>
             )}
           </div>
-
-          {/* NUEVO BLOQUE DE ALERTA DE ERRORES FIREBASE VISUAL */}
-          {dbError && (
-            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-4 rounded-xl shadow-sm flex items-start gap-4 animate-fade-in-down">
-              <ShieldAlert className="w-7 h-7 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-bold text-red-800 dark:text-red-300 text-lg">Firebase ha bloqueado tu interfaz web</h3>
-                <p className="text-red-700 dark:text-red-400 text-sm mt-1">
-                  <strong>Detalle técnico:</strong> {dbError}
-                </p>
-                <div className="mt-3 text-sm text-red-800 dark:text-red-200 bg-white dark:bg-slate-800 p-3 rounded-lg border border-red-100 dark:border-red-800/50">
-                  <p className="font-bold mb-1">🔧 Solución en 30 segundos (Reglas caducadas):</p>
-                  <ol className="list-decimal pl-5 space-y-1">
-                    <li>Ve a tu <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline font-bold text-blue-600 dark:text-blue-400">Consola de Firebase</a>.</li>
-                    <li>Entra a tu proyecto <strong>lector-codigos-77e09</strong>, ve a <strong>Firestore Database</strong> y entra en la pestaña <strong>Reglas (Rules)</strong>.</li>
-                    <li>Borra lo que hay ahí y pega esto: <br/> <code className="bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded font-mono text-xs block mt-1">rules_version = '2';<br/>service cloud.firestore &#123;<br/>  match /databases/&#123;database&#125;/documents &#123;<br/>    match /&#123;document=**&#125; &#123;<br/>      allow read, write: if true;<br/>    &#125;<br/>  &#125;<br/>&#125;</code></li>
-                    <li>Haz clic en el botón azul <strong>Publicar</strong> y recarga esta página.</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col md:flex-row gap-4 transition-colors">
             {/* Buscador */}
