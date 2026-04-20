@@ -160,7 +160,9 @@ export default function App() {
   const getDisplayEmail = (item) => {
     const sender = (item.email || '').toLowerCase();
     const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
-    if (item.service === 'Hotmail' || isDisneyBot) {
+    const isNetflixBot = sender.includes('netflix.com');
+    
+    if (item.service === 'Hotmail' || isDisneyBot || isNetflixBot) {
       return item.destinatario || item.email || '';
     }
     return item.email || '';
