@@ -91,9 +91,8 @@ export default function App() {
 
         // LÓGICA INTELIGENTE PARA DETECTAR Y RENOMBRAR HOTMAIL
         let finalService = data.service;
-        const senderEmail = (data.email || '').toLowerCase(); // Remitente (usado para detectar Microsoft)
+        const senderEmail = (data.email || '').toLowerCase(); 
         
-        // Si el REMITENTE es el robot de Microsoft, lo clasificamos como Hotmail automáticamente
         if (senderEmail.includes('accountprotection.microsoft.com') || senderEmail.includes('account-security-noreply')) {
           finalService = 'Hotmail';
         }
@@ -157,6 +156,59 @@ export default function App() {
     }
   };
 
+  // --- LÓGICA INTELIGENTE PARA DECIDIR QUÉ CORREO MOSTRAR ---
+  const getDisplayEmail = (item) => {
+    const sender = (item.email || '').toLowerCase();
+    const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
+    if (item.service === 'Hotmail' || isDisneyBot) {
+      return item.destinatario || item.email || '';
+    }
+    return item.email || '';
+  };
+
+  // --- NUEVA LÓGICA INTELIGENTE: EXTRAER EL ENLACE CORRECTO (ESPECIAL NETFLIX) ---
+  const getDisplayUrl = (item) => {
+    let rawData = item.url || item.code || '';
+    if (!rawData) return '#';
+
+    // Buscamos todas las URLs posibles que Make haya enviado en el texto
+    const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+    const urls = rawData.match(urlRegex);
+
+    // Si no hay múltiples URLs detectadas, devolvemos lo original limpiando espacios
+    if (!urls || urls.length === 0) {
+      return rawData.replace(/\s+/g, '');
+    }
+
+    // Regla de aislamiento solo para Netflix
+    if (item.service === 'Netflix') {
+      // 1. Filtramos la basura obvia que nunca es un botón de acción principal
+      let validUrls = urls.filter(url => {
+        const lowerUrl = url.toLowerCase();
+        return !lowerUrl.includes('help.netflix.com') && 
+               !lowerUrl.includes('/support') && 
+               !lowerUrl.includes('/privacy') && 
+               !lowerUrl.includes('termsofuse') &&
+               !(lowerUrl === 'https://www.netflix.com' || lowerUrl === 'https://www.netflix.com/') &&
+               !lowerUrl.includes('netflix.com/browse');
+      });
+
+      // Si por alguna razón se filtraron todas (muy raro), devolvemos la primera original
+      if (validUrls.length === 0) return urls[0];
+
+      // 2. HEURÍSTICA MAESTRA: Los botones rojos de acción en Netflix (Actualizar Hogar o 
+      // Restablecer Contraseña) SIEMPRE tienen un token temporal que los hace las URLs 
+      // más largas de todo el correo. Los links de texto normales son mucho más cortos.
+      validUrls.sort((a, b) => b.length - a.length);
+
+      // Devolvemos la URL más larga, ignorando el orden en el que aparecieron en el correo
+      return validUrls[0];
+    }
+
+    // Para Disney+, HBO u otros servicios de enlaces, conservamos la regla de devolver el primero
+    return urls[0];
+  };
+
   const handleClearAll = async () => {
     setLoading(true);
     try {
@@ -171,26 +223,9 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- LÓGICA INTELIGENTE PARA DECIDIR QUÉ CORREO MOSTRAR ---
-  const getDisplayEmail = (item) => {
-    const sender = (item.email || '').toLowerCase();
-    
-    // Si es el bot de Microsoft o viene directamente del bot oficial de Disney+
-    const isDisneyBot = sender.includes('disneyplus.com') || sender.includes('disney.com');
-    
-    if (item.service === 'Hotmail' || isDisneyBot) {
-      return item.destinatario || item.email || '';
-    }
-    
-    // Para los demás (ej. clientes de Netflix reenviando correos), mostramos el remitente
-    return item.email || '';
-  };
-
-  // --- Extracción inteligente de dominios ---
   const availableDomains = useMemo(() => {
     const domains = new Set();
     codes.forEach(c => {
-      // Usamos la función inteligente
       const targetEmail = getDisplayEmail(c);
       if(targetEmail.includes('@')) {
         domains.add(targetEmail.split('@')[1].toLowerCase());
@@ -200,12 +235,9 @@ export default function App() {
   }, [codes]);
 
   const filteredCodes = codes.filter(item => {
-    // CONDICIÓN: Búsqueda y filtrado usando la función inteligente
     const targetEmail = getDisplayEmail(item);
-    
     const matchesSearch = targetEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesService = filterService === 'All' || item.service === filterService;
-    
     const itemDomain = targetEmail.includes('@') ? targetEmail.split('@')[1].toLowerCase() : '';
     const matchesDomain = filterDomain === 'All' || itemDomain === filterDomain;
 
@@ -228,7 +260,6 @@ export default function App() {
     }
   };
 
-  // --- PANTALLA DE LOGIN ---
   if (!isAuthenticated) {
     return (
       <div className={isDarkMode ? 'dark' : ''}>
@@ -463,8 +494,6 @@ export default function App() {
                 <div className="divide-y divide-gray-100 dark:divide-slate-700/50">
                   {paginatedCodes.map((item) => {
                     const cleanCode = item.code ? item.code.replace(/\s+/g, '') : null;
-                    
-                    // CONDICIÓN VISUAL: Determinar qué correo mostrar usando la función central
                     const displayEmail = getDisplayEmail(item);
 
                     return (
@@ -502,7 +531,7 @@ export default function App() {
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                       {item.type === 'link' ? (
                         <a 
-                          href={item.url || item.code} 
+                          href={getDisplayUrl(item)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           onClick={() => markAsRead(item.id)}
